@@ -2,101 +2,491 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>COPOM | Operacional Completo</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SISTEMA CAD MOBILE - COPOM PMSP V5</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
     <style>
-        #selector-box { 
-            position: fixed; border: 2px solid #ef4444; background: rgba(239, 68, 68, 0.1); 
-            z-index: 9999; cursor: move; display: none; resize: both; overflow: auto; min-width: 100px; min-height: 50px;
+        :root {
+            --bg-terminal: #07080a;
+            --bg-painel: #111317;
+            --borda-militar: #22262c;
+            --pm-vermelho: #d32f2f;
+            --pm-azul: #1976d2;
+            --pm-amarelo: #fbc02d;
+            --vtr-qap: #388e3c;
+            --vtr-qti: #f57c00;
+            --texto-principal: #e2e8f0;
+            --texto-secundario: #94a3b8;
         }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; }
+        body { background-color: var(--bg-terminal); color: var(--texto-principal); padding-bottom: 90px; }
+        
+        /* Tela de Login */
+        #tela-login {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--bg-terminal);
+            z-index: 5000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .login-box {
+            background-color: var(--bg-painel);
+            border: 2px solid var(--borda-militar);
+            border-top: 4px solid var(--pm-vermelho);
+            padding: 25px;
+            width: 100%;
+            max-width: 400px;
+            border-radius: 4px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 1px dashed var(--borda-militar);
+            padding-bottom: 15px;
+        }
+        .login-header h2 { font-size: 1.1rem; color: #fff; letter-spacing: 1px; }
+        .login-header p { font-size: 0.7rem; color: var(--texto-secundario); margin-top: 4px; }
+        .login-box label { display: block; font-size: 0.7rem; color: var(--texto-secundario); margin-bottom: 4px; font-weight: bold; }
+        
+        /* Layout Principal Oculto Inicialmente */
+        #conteudo-principal { display: none; }
+
+        header {
+            background-color: var(--bg-painel);
+            padding: 10px;
+            border-bottom: 2px solid var(--pm-vermelho);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header h1 { font-size: 0.85rem; color: #fff; font-weight: bold; }
+        .clock { color: var(--pm-amarelo); font-size: 0.8rem; font-weight: bold; }
+
+        /* Abas Inferiores */
+        .nav-operacional {
+            position: fixed;
+            bottom: 0; left: 0; width: 100%;
+            background-color: var(--bg-painel);
+            display: flex;
+            border-top: 2px solid var(--borda-militar);
+            z-index: 1000;
+        }
+        .btn-aba {
+            background: none; border: none; color: var(--texto-secundario);
+            padding: 18px 2px; font-size: 0.75rem; font-weight: bold; flex: 1; text-align: center;
+            cursor: pointer;
+        }
+        .btn-aba.ativa { color: #fff; background-color: #161920; border-top: 4px solid var(--pm-vermelho); }
+
+        .painel-conteudo { display: none; padding: 10px; }
+        .painel-conteudo.ativo { display: block; }
+        .cad-box { background-color: var(--bg-painel); border: 1px solid var(--borda-militar); padding: 10px; margin-bottom: 10px; }
+        .box-titulo { font-size: 0.75rem; color: var(--texto-secundario); margin-bottom: 8px; border-bottom: 1px solid var(--borda-militar); padding-bottom: 4px; font-weight: bold; }
+
+        input, select, textarea {
+            width: 100%; background-color: var(--bg-terminal); border: 1px solid var(--borda-militar);
+            color: #fff; padding: 10px; margin-bottom: 6px; font-size: 0.85rem; border-radius: 4px;
+        }
+
+        .btn-comando {
+            width: 100%; background-color: #1e222b; color: #fff; border: 1px solid #3a424c;
+            padding: 12px; font-weight: bold; font-size: 0.8rem; cursor: pointer; text-transform: uppercase; border-radius: 4px;
+        }
+
+        /* Cores de Viaturas */
+        .vtr-m { border-left: 5px solid var(--pm-azul) !important; }
+        .vtr-tatico { border-left: 5px solid var(--pm-amarelo) !important; }
+        .vtr-rocam { border-left: 5px solid #4a5568 !important; }
+
+        .vtr-card { background-color: var(--bg-painel); border: 1px solid var(--borda-militar); padding: 10px; margin-top: 6px; border-radius: 4px; }
+        .status-badge { padding: 2px 6px; font-size: 0.65rem; border-radius: 2px; font-weight: bold; float: right; }
+        .st-qap { background: rgba(56,142,60,0.2); color: #81c784; border: 1px solid var(--vtr-qap); }
+        .st-qti { background: rgba(245,124,0,0.2); color: #ffb74d; border: 1px solid var(--vtr-qti); }
+        .st-qth { background: rgba(25,118,210,0.2); color: #64b5f6; border: 1px solid var(--pm-azul); }
+
+        /* Prioridades e Saturação */
+        .prio-ALTA { border-left: 6px solid var(--pm-vermelho) !important; }
+        .prio-MÉDIA { border-left: 5px solid var(--pm-amarelo) !important; }
+        .prio-BAIXA { border-left: 5px solid var(--vtr-qap) !important; }
+        
+        .alerta-saturacao { background-color: rgba(211, 47, 47, 0.2); border: 1px solid var(--pm-vermelho); color: #ff8a80; padding: 10px; font-size: 0.75rem; margin-bottom: 10px; border-radius: 4px; font-weight: bold; }
+
+        .oc-card { background-color: var(--bg-painel); padding: 10px; margin-top: 8px; border-radius: 0 4px 4px 0; }
+        .oc-finalizada { opacity: 0.45; border-left: 5px solid #555 !important; }
+        
+        /* Scripts e Logs */
+        .script-oficial { background-color: #0d1117; border: 1px dashed var(--pm-azul); padding: 10px; font-size: 0.75rem; color: #c9d1d9; margin-top: 8px; line-height: 1.4; border-radius: 4px; }
+        .script-oficial b { color: var(--pm-amarelo); }
+        .btn-copiar { background: #21262d; border: 1px solid #30363d; color: #58a6ff; font-size: 0.6rem; padding: 2px 6px; float: right; cursor: pointer; border-radius: 3px; }
+
+        #terminal-log { background-color: #050505; height: 100px; overflow-y: scroll; padding: 5px; font-size: 0.65rem; color: #4caf50; }
+        
+        /* Contêiner do Mapa */
+        #mapa-container { height: 300px; border: 1px solid var(--borda-militar); border-radius: 4px; margin-bottom: 10px; background-color: #000;}
     </style>
 </head>
-<body class="bg-gray-950 text-white font-sans h-screen flex flex-col">
+<body id="app-body">
 
-    <div id="selector-box"></div>
-
-    <header class="bg-gray-900 p-4 border-b border-gray-800 flex justify-between">
-        <h1 class="text-xl font-black text-yellow-500">COPOM | CENTRAL</h1>
-        <button id="btn-config" onclick="toggleSelector()" class="bg-red-600 px-4 py-1 rounded text-xs font-bold uppercase">Configurar Área de Leitura</button>
-    </header>
-
-    <div class="grid grid-cols-3 flex-1 overflow-hidden p-4 gap-4">
-        <div class="bg-gray-800 p-4 rounded border border-gray-700 overflow-y-auto">
-            <h2 class="text-blue-400 font-bold mb-2">SCANNER ATIVO</h2>
-            <div id="status-scanner" class="text-xs text-yellow-500">Scanner desligado. Clique em configurar.</div>
-        </div>
-        
-        <div class="bg-gray-800 p-4 rounded border border-gray-700">
-            <h2 class="text-green-400 font-bold mb-2">VIATURAS</h2>
-            <div id="lista-viaturas"></div>
-        </div>
-
-        <div class="bg-gray-800 p-4 rounded border border-gray-700 overflow-y-auto">
-            <h2 class="text-red-500 font-bold mb-2">OCORRÊNCIAS</h2>
-            <div id="lista-ocorrencias"></div>
+    <div id="tela-login">
+        <div class="login-box">
+            <div class="login-header">
+                <h2>AUTENTICAÇÃO MILITAR</h2>
+                <p>SISTEMA OPERACIONAL CAD V5</p>
+            </div>
+            <label>PATENTE / POSTO</label>
+            <select id="login-patente">
+                <option value="Soldado">Soldado</option>
+                <option value="Cabo">Cabo</option>
+                <option value="Sargento">Sargento</option>
+                <option value="Tenente">Tenente</option>
+                <option value="Capitão">Capitão</option>
+            </select>
+            <label>BATALHÃO / UNIDADE</label>
+            <input type="text" id="login-batalhao" placeholder="Ex: 09º BPM/M, 4º BAEP" oninput="this.value = this.value.toUpperCase()">
+            <label>NOME DE GUERRA</label>
+            <input type="text" id="login-nome" placeholder="Ex: FIUSA" oninput="this.value = this.value.toUpperCase()">
+            <label>REGISTRO MILITAR (RM)</label>
+            <input type="text" id="login-rm" placeholder="Ex: RM-4012.26" oninput="this.value = this.value.toUpperCase()">
+            <button class="btn-comando" style="border-color: var(--pm-azul); color: #64b5f6; margin-top: 10px;" onclick="autenticarOperador()">ACESSAR TERMINAL</button>
         </div>
     </div>
 
+    <div id="conteudo-principal">
+        <header>
+            <h1 id="titulo-cad-operador">CAD OPERACIONAL // PMSP V5</h1>
+            <div class="clock" id="live-clock">00:00:00</div>
+        </header>
+
+        <div id="pane-vtrs" class="painel-conteudo ativo">
+            <div class="cad-box">
+                <div class="box-titulo">> REGISTRO DE UNIDADE (ENTRADA EM PATRULHA)</div>
+                <input type="text" id="add-prefixo" placeholder="PREFIXO (Ex: M-1510, TÁTICO 20)" oninput="this.value = this.value.toUpperCase()">
+                
+                <label style="font-size:0.65rem; color:var(--texto-secundario);">REGIÃO / SETOR DA PATRULHA (LIVRE):</label>
+                <input type="text" id="add-regiao" placeholder="Ex: CENTRO, ZONA SUL, BAIRRO ALFA" oninput="this.value = this.value.toUpperCase()">
+
+                <button class="btn-comando" style="border-color: var(--vtr-qap); color: #81c784;" onclick="cadastrarVTR()">INICIAR PATRULHA (REGISTRAR HORÁRIO)</button>
+            </div>
+            
+            <div class="box-titulo">> MONITOR DE UNIDADES NA RUA (<span id="count-vtr">0</span>)</div>
+            <div id="lista-vtrs"></div>
+        </div>
+
+        <div id="pane-despacho" class="painel-conteudo">
+            <div id="alerta-saturacao-container"></div>
+
+            <div class="cad-box">
+                <div class="box-titulo">> PROTOCOLO DE DESPACHO & BAILAMENTO</div>
+                <div style="display: flex; gap: 4px;">
+                    <input type="text" id="oc-natureza" placeholder="NATUREZA DA OCORRÊNCIA (LIVRE)" oninput="this.value = this.value.toUpperCase()" style="flex:2;">
+                    <select id="oc-prioridade" style="flex:1;">
+                        <option value="BAIXA">BAIXA</option>
+                        <option value="MÉDIA" selected>MÉDIA</option>
+                        <option value="ALTA">ALTA</option>
+                    </select>
+                </div>
+                
+                <label style="font-size:0.65rem; color:var(--texto-secundario);">QTH / LOCALIZAÇÃO EXATA (GERA TRAÇADO LIVRE NO MAPA):</label>
+                <input type="text" id="oc-regiao-alvo" placeholder="Ex: AV PAULISTA 1000, CENTRO, ZONA OESTE" oninput="this.value = this.value.toUpperCase()">
+
+                <label style="font-size: 0.65rem; color: var(--texto-secundario);">ESCOLHER UNIDADE PARA DESPACHO (ACOMPANHAMENTO):</label>
+                <select id="oc-vtr-vinculo"></select>
+
+                <input type="text" id="oc-dados" placeholder="CARACTERÍSTICAS / ARMAS / RUMO (DADOS COMPLEMENTARES)" oninput="this.value = this.value.toUpperCase()">
+                <button class="btn-comando" style="border-color: var(--pm-vermelho); color: #e57373;" onclick="gerarOcorrenciaCAD()">TRANSMITIR E EMPENHAR VIA RÁDIO</button>
+            </div>
+
+            <div class="box-titulo">> PROTOCOLOS ATIVOS NA MESA</div>
+            <div id="lista-ocorrencias"></div>
+        </div>
+
+        <div id="pane-logs" class="painel-conteudo">
+            <div class="box-titulo">> MAPA OPERACIONAL (LINHA DE PERCURSO MODULADO)</div>
+            <div id="mapa-container"></div>
+
+            <div class="cad-box">
+                <div class="box-titulo">> TRADUTOR DE PLACA FONÉTICO</div>
+                <div style="display:flex; gap:4px;">
+                    <input type="text" id="input-placa" placeholder="DIGITE A PLACA" oninput="traduzirPlaca(this.value)" style="flex:3;">
+                    <button class="btn-comando" style="flex:1; padding:0; font-size:0.65rem;" onclick="escutarVozPlaca()">🎙️ ESCUTAR</button>
+                </div>
+                <div class="script-oficial" style="color:var(--pm-amarelo);">
+                    <span id="output-fonetico">Aguardando placa...</span>
+                </div>
+            </div>
+
+            <div class="box-titulo">> HISTÓRICO DE MODULAÇÃO / OPERAÇÕES</div>
+            <div id="terminal-log"></div>
+        </div>
+
+        <nav class="nav-operacional">
+            <button class="btn-aba ativa" onclick="mudarPainel('pane-vtrs', this)">[01] REGISTRO VTR</button>
+            <button class="btn-aba" onclick="mudarPainel('pane-despacho', this)" id="btn-aba-despacho">[02] DESPACHO</button>
+            <button class="btn-aba" onclick="mudarPainel('pane-logs', this)">[03] MAPA & LOG</button>
+        </nav>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <script>
-        // FIREBASE (Coloque aqui suas configurações)
-        const firebaseConfig = { /* ... seu código aqui ... */ };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+        // Banco de dados em LocalStorage
+        let DATA = JSON.parse(localStorage.getItem('copom_v5_db')) || { vtrs: [], ocs: [], logs: [], contadorCAD: 100 };
+        let mapa, rotaLinha;
+        
+        // Coordenadas base (Centro de São Paulo)
+        let latAtual = -23.5505;
+        let lngAtual = -46.6333;
+        let historicoCoordenadas = [[latAtual, lngAtual]];
 
-        const box = document.getElementById('selector-box');
-        let stream = null;
+        const alfabeto = {
+            'A': 'Alfa', 'B': 'Bravo', 'C': 'Charlie', 'D': 'Delta', 'E': 'Eco', 'F': 'Foxtrot',
+            'G': 'Golf', 'H': 'Hotel', 'I': 'Índia', 'J': 'Juliet', 'K': 'Kilo', 'L': 'Lima',
+            'M': 'Mike', 'N': 'November', 'O': 'Oscar', 'P': 'Papa', 'Q': 'Quebec', 'R': 'Romeo',
+            'S': 'Sierra', 'T': 'Tango', 'U': 'Uniform', 'V': 'Victor', 'W': 'Whiskey', 'X': 'X-Ray',
+            'Y': 'Yankee', 'Z': 'Zulu',
+            '0': 'Zero', '1': 'Um', '2': 'Dois', '3': 'Três', '4': 'Quatro', '5': 'Cinco', '6': 'Seis', '7': 'Sete', '8': 'Oito', '9': 'Nove'
+        };
 
-        function toggleSelector() {
-            if(box.style.display === 'block') {
-                box.style.display = 'none';
-                iniciarLeituraOCR();
-            } else {
-                navigator.mediaDevices.getDisplayMedia({ video: true }).then(s => {
-                    stream = s;
-                    box.style.display = 'block';
-                    box.style.top = '100px'; box.style.left = '100px';
-                    box.style.width = '300px'; box.style.height = '150px';
-                    document.getElementById('status-scanner').innerText = "Ajuste o quadrado vermelho e clique no botão novamente.";
-                });
+        function autenticarOperador() {
+            let patente = document.getElementById('login-patente').value;
+            let batalhao = document.getElementById('login-batalhao').value.trim();
+            let nome = document.getElementById('login-nome').value.trim();
+            let rm = document.getElementById('login-rm').value.trim();
+
+            if (!batalhao || !nome || !rm) return alert("Preencha todos os dados!");
+
+            document.getElementById('titulo-cad-operador').innerHTML = `CAD // ${batalhao} // ${patente.toUpperCase()} ${nome} (RM: ${rm})`;
+            adicionarLog(`OPERADOR CONECTADO: ${patente.toUpperCase()} ${nome} [${batalhao}]`);
+            
+            document.getElementById('tela-login').style.display = 'none';
+            document.getElementById('conteudo-principal').style.display = 'block';
+            
+            setTimeout(inicializarMapa, 500);
+        }
+
+        function inicializarMapa() {
+            mapa = L.map('mapa-container').setView([latAtual, lngAtual], 12);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: 'COPOM'
+            }).addTo(mapa);
+
+            rotaLinha = L.polyline(historicoCoordenadas, {color: 'red', weight: 4}).addTo(mapa);
+        }
+
+        function salvar() { 
+            localStorage.setItem('copom_v5_db', JSON.stringify(DATA)); 
+            renderizarSistemas(); 
+        }
+        
+        function adicionarLog(msg) { 
+            DATA.logs.push(`[${new Date().toLocaleTimeString('pt-BR')}] ${msg}`); 
+            salvar(); 
+        }
+        
+        function mudarPainel(id, btn) {
+            document.querySelectorAll('.painel-conteudo').forEach(p => p.classList.remove('ativo'));
+            document.querySelectorAll('.btn-aba').forEach(b => b.classList.remove('ativa'));
+            document.getElementById(id).classList.add('ativo'); 
+            btn.classList.add('ativa');
+            
+            if (id === 'pane-logs' && mapa) {
+                setTimeout(() => mapa.invalidateSize(), 200);
             }
         }
 
-        function iniciarLeituraOCR() {
-            const video = document.createElement('video');
-            video.srcObject = stream;
-            video.play();
-            document.getElementById('status-scanner').innerText = "Monitorando...";
+        setInterval(() => { 
+            document.getElementById('live-clock').innerText = new Date().toLocaleTimeString('pt-BR'); 
+        }, 1000);
 
-            setInterval(() => {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                const rect = box.getBoundingClientRect();
-                
-                canvas.width = rect.width;
-                canvas.height = rect.height;
-                ctx.drawImage(video, rect.left, rect.top, rect.width, rect.height, 0, 0, rect.width, rect.height);
+        function cadastrarVTR() {
+            let p = document.getElementById('add-prefixo').value.trim();
+            let reg = document.getElementById('add-regiao').value.trim().toUpperCase();
+            if(!p || !reg) return alert("Prefixo e Região são obrigatórios!");
 
-                Tesseract.recognize(canvas, 'por').then(({ data: { text } }) => {
-                    if(text.toLowerCase().includes("roubo")) {
-                        processarOcorrencia(text);
-                    }
-                });
-            }, 3000);
-        }
+            let hInicio = new Date().toLocaleTimeString('pt-BR');
 
-        function processarOcorrencia(texto) {
-            // Lógica que a gente já tinha: extrair local, gravar no Firebase
-            db.ref('ocorrencias/' + Date.now()).set({
-                natureza: "Roubo a Caixa Eletrônico",
-                local: texto.substring(0, 50),
-                horario: new Date().toLocaleTimeString()
+            DATA.vtrs.push({ 
+                id: Date.now(), 
+                prefixo: p, 
+                regiao: reg, 
+                inicio: hInicio, 
+                fim: "EM PATRULHA", 
+                status: 'QAP / PATRULHAMENTO',
+                classe: p.includes('TÁTICO') || p.includes('BAEP') ? 'vtr-tatico' : (p.includes('ROCAM') ? 'vtr-rocam' : 'vtr-m')
             });
+            
+            adicionarLog(`UNIDADE ${p} INICIOU PATRULHA ÀS ${hInicio} EM: ${reg}`);
+            document.getElementById('add-prefixo').value = '';
+            document.getElementById('add-regiao').value = '';
         }
-        
-        // ... RESTANTE DO SEU CÓDIGO DE LISTAGEM DE VIATURAS E OCORRÊNCIAS ...
+
+        function finalizarPatrulhaVTR(id) {
+            let v = DATA.vtrs.find(item => item.id === id);
+            if(v) {
+                v.fim = new Date().toLocaleTimeString('pt-BR');
+                v.status = "QAR (FINALIZADO)";
+                adicionarLog(`UNIDADE ${v.prefixo} FINALIZOU PATRULHA ÀS ${v.fim}`);
+                salvar();
+            }
+        }
+
+        function gerarOcorrenciaCAD() {
+            let nat = document.getElementById('oc-natureza').value.trim();
+            let prio = document.getElementById('oc-prioridade').value;
+            let regAlvo = document.getElementById('oc-regiao-alvo').value.trim().toUpperCase();
+            let vtrId = document.getElementById('oc-vtr-vinculo').value;
+            let dados = document.getElementById('oc-dados').value.trim() || "SEM DADOS COMPLEMENTARES.";
+
+            if(!nat || !regAlvo) return alert("Natureza e Localização são obrigatórios!");
+
+            DATA.contadorCAD++;
+            let numCAD = `CAD:${DATA.contadorCAD}-26`;
+            let nomeVtr = "REDE GERAL";
+
+            if(vtrId) {
+                let v = DATA.vtrs.find(item => item.id == vtrId);
+                if(v) {
+                    v.status = `QTI / DESPACHO`;
+                    v.regiao = regAlvo; 
+                    nomeVtr = v.prefixo;
+                }
+            }
+
+            // Simulação de Deslocamento Livre no mapa (gera percurso incremental)
+            // Cada nova ocorrência gera pequenos desvios baseados na string para desenhar a linha do percurso
+            let seed = regAlvo.length;
+            latAtual += (Math.sin(seed) * 0.02);
+            lngAtual += (Math.cos(seed) * 0.02);
+            
+            let novaCoordenada = [latAtual, lngAtual];
+            historicoCoordenadas.push(novaCoordenada);
+            
+            if(mapa) {
+                rotaLinha.setLatLngs(historicoCoordenadas);
+                L.marker(novaCoordenada).addTo(mapa).bindPopup(`<b>${numCAD}</b><br>${nat}<br>${regAlvo}`).openPopup();
+                mapa.setView(novaCoordenada, 12);
+            }
+
+            DATA.ocs.push({
+                id: Date.now(), cadNum: numCAD, natureza: nat, regiao: regAlvo, estado: 'Em Andamento',
+                vtr: nomeVtr, dados: dados, horario: new Date().toLocaleTimeString('pt-BR'), prioridade: prio
+            });
+
+            adicionarLog(`DESPACHO: ${nomeVtr} BAIXADA PARA OCORRÊNCIA ${nat} EM ${regAlvo}`);
+            document.getElementById('oc-natureza').value = '';
+            document.getElementById('oc-regiao-alvo').value = '';
+            document.getElementById('oc-dados').value = '';
+        }
+
+        function finalizarOcorrenciaCAD(id) {
+            let o = DATA.ocs.find(item => item.id === id);
+            if(o) {
+                o.estado = 'Finalizado';
+                adicionarLog(`CAD [${o.cadNum}] DEFINIDO COMO FINALIZADO NA MESA.`);
+                salvar();
+            }
+        }
+
+        function traduzirPlaca(texto) {
+            let limpo = texto.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if(!limpo) return document.getElementById('output-fonetico').innerText = "Aguardando placa...";
+            let res = [];
+            for(let char of limpo) res.push(alfabeto[char] || char);
+            document.getElementById('output-fonetico').innerText = `MODALIDADE: [${res.join(" - ")}]`;
+        }
+
+        function escutarVozPlaca() {
+            window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if(!window.SpeechRecognition) return alert("Navegador não suporta reconhecimento de voz.");
+            let rec = new SpeechRecognition();
+            rec.lang = 'pt-BR';
+            rec.start();
+            adicionarLog("🎙️ MICROFONE ATIVADO - TRANSCREVENDO MODULAÇÃO...");
+
+            rec.onresult = function(e) {
+                let fala = e.results[0][0].transcript;
+                document.getElementById('input-placa').value = fala;
+                traduzirPlaca(fala);
+            };
+        }
+
+        function renderizarSistemas() {
+            // Renderiza as Viaturas
+            let divVtr = document.getElementById('lista-vtrs'); 
+            divVtr.innerHTML = '';
+            document.getElementById('count-vtr').innerText = DATA.vtrs.filter(v => v.status !== "QAR (FINALIZADO)").length;
+            
+            let selectVtr = document.getElementById('oc-vtr-vinculo');
+            selectVtr.innerHTML = '<option value="">-- REDE DE TRANSMISSÃO GERAL (CERCO) --</option>';
+
+            let contagemRegioes = {};
+
+            DATA.vtrs.forEach(v => {
+                if(v.status !== "QAR (FINALIZADO)") {
+                    contagemRegioes[v.regiao] = (contagemRegioes[v.regiao] || 0) + 1;
+                }
+
+                let badgeClass = v.status.includes('QTI') ? 'st-qti' : 'st-qap';
+
+                divVtr.innerHTML += `
+                    <div class="vtr-card ${v.classe}">
+                        <span class="status-badge ${badgeClass}">${v.status}</span>
+                        <strong>${v.prefixo}</strong> [SETOR: ${v.regiao}]<br>
+                        <span style="font-size:0.65rem; color:var(--texto-secundario)">INÍCIO: ${v.inicio} | FIM: ${v.fim}</span>
+                        <div style="margin-top:5px;">
+                            <button class="btn-comando" style="padding:4px; font-size:0.65rem; border-color:var(--pm-vermelho);" onclick="finalizarPatrulhaVTR(${v.id})">⛔ FINALIZAR TURNO (QAR)</button>
+                        </div>
+                    </div>`;
+
+                if(v.status !== "QAR (FINALIZADO)") {
+                    selectVtr.innerHTML += `<option value="${v.id}">${v.prefixo} (${v.regiao})</option>`;
+                }
+            });
+
+            // Alertas Visuais de Saturação por Setor Digitado
+            let divSaturacao = document.getElementById('alerta-saturacao-container');
+            divSaturacao.innerHTML = '';
+            for(let reg in contagemRegioes) {
+                if(contagemRegioes[reg] >= 3) {
+                    divSaturacao.innerHTML += `<div class="alerta-saturacao">⚠️ SATURAÇÃO CRÍTICA: ${contagemRegioes[reg]} unidades concentradas no setor ${reg}! Redistribua o despacho.</div>`;
+                }
+            }
+
+            // Renderiza Ocorrências (Mantendo as finalizadas visíveis com opacidade reduzida)
+            let divOc = document.getElementById('lista-ocorrencias'); 
+            divOc.innerHTML = '';
+            DATA.ocs.forEach(o => {
+                let statusClass = o.estado === 'Finalizado' ? 'oc-finalizada' : `prio-${o.prioridade}`;
+                let trechoVTR = o.vtr !== "REDE GERAL" ? `Unidade alocada em acompanhamento: <b>${o.vtr}</b> proceda em QTI.` : `<b>Todas as unidades operacionais</b> iniciem cerco integrado.`;
+                
+                let botaofinalizar = o.estado === 'Em Andamento' ? 
+                    `<button class="btn-comando" style="padding:4px; font-size:0.65rem; border-color:var(--vtr-qap); margin-top:5px;" onclick="finalizarOcorrenciaCAD(${o.id})">✓ FINALIZAR CAD</button>` : '';
+
+                divOc.innerHTML += `
+                    <div class="oc-card ${statusClass}">
+                        <div style="font-size:0.75rem; font-weight:bold; color:var(--pm-amarelo)">[${o.estado.toUpperCase()}] ${o.cadNum} - ${o.horario}</div>
+                        <div style="font-size:0.7rem;"><b>NATUREZA:</b> ${o.natureza} | <b>LOCALIZAÇÃO:</b> ${o.regiao}</div>
+                        <div class="script-oficial">
+                            Atenção rede, COPOM informa prioridade <b>${o.prioridade}</b> para <b>${o.natureza.toLowerCase()}</b> na região de <b>${o.regiao}</b>. ${trechoVTR} Dados da mesa: ${o.dados.toLowerCase()}. COPOM em QAP.
+                        </div>
+                        ${botaofinalizar}
+                    </div>`;
+            });
+
+            // Logs de Operações
+            let divLog = document.getElementById('terminal-log'); 
+            divLog.innerHTML = '';
+            DATA.logs.slice().reverse().forEach(l => { divLog.innerHTML += `<div>${l}</div>`; });
+        }
+
+        renderizarSistemas();
     </script>
 </body>
 </html>
