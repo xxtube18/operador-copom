@@ -2,65 +2,101 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Scanner COPOM Pro</title>
+    <title>COPOM | Operacional Completo</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        /* Estilo do quadrado de seleção */
-        #selector-box {
-            position: fixed; border: 2px solid red; background: rgba(255, 0, 0, 0.1);
-            cursor: move; z-index: 9999; display: none; resize: both; overflow: auto;
+        #selector-box { 
+            position: fixed; border: 2px solid #ef4444; background: rgba(239, 68, 68, 0.1); 
+            z-index: 9999; cursor: move; display: none; resize: both; overflow: auto; min-width: 100px; min-height: 50px;
         }
     </style>
 </head>
-<body class="bg-gray-950 text-white p-6">
-
-    <button id="btn-iniciar" onclick="iniciarConfiguracao()" class="bg-red-600 px-6 py-3 rounded font-bold">
-        CONFIGURAR ÁREA DE LEITURA
-    </button>
+<body class="bg-gray-950 text-white font-sans h-screen flex flex-col">
 
     <div id="selector-box"></div>
 
+    <header class="bg-gray-900 p-4 border-b border-gray-800 flex justify-between">
+        <h1 class="text-xl font-black text-yellow-500">COPOM | CENTRAL</h1>
+        <button id="btn-config" onclick="toggleSelector()" class="bg-red-600 px-4 py-1 rounded text-xs font-bold uppercase">Configurar Área de Leitura</button>
+    </header>
+
+    <div class="grid grid-cols-3 flex-1 overflow-hidden p-4 gap-4">
+        <div class="bg-gray-800 p-4 rounded border border-gray-700 overflow-y-auto">
+            <h2 class="text-blue-400 font-bold mb-2">SCANNER ATIVO</h2>
+            <div id="status-scanner" class="text-xs text-yellow-500">Scanner desligado. Clique em configurar.</div>
+        </div>
+        
+        <div class="bg-gray-800 p-4 rounded border border-gray-700">
+            <h2 class="text-green-400 font-bold mb-2">VIATURAS</h2>
+            <div id="lista-viaturas"></div>
+        </div>
+
+        <div class="bg-gray-800 p-4 rounded border border-gray-700 overflow-y-auto">
+            <h2 class="text-red-500 font-bold mb-2">OCORRÊNCIAS</h2>
+            <div id="lista-ocorrencias"></div>
+        </div>
+    </div>
+
     <script>
+        // FIREBASE (Coloque aqui suas configurações)
+        const firebaseConfig = { /* ... seu código aqui ... */ };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
         const box = document.getElementById('selector-box');
         let stream = null;
 
-        async function iniciarConfiguracao() {
-            stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            box.style.display = 'block';
-            box.style.width = '300px'; box.style.height = '150px';
-            box.style.top = '50px'; box.style.left = '50px';
-            
-            // Após 5 segundos, ele captura a área definida
-            alert("Ajuste o quadrado vermelho sobre as notificações e aguarde.");
-            setTimeout(iniciarScanner, 5000);
+        function toggleSelector() {
+            if(box.style.display === 'block') {
+                box.style.display = 'none';
+                iniciarLeituraOCR();
+            } else {
+                navigator.mediaDevices.getDisplayMedia({ video: true }).then(s => {
+                    stream = s;
+                    box.style.display = 'block';
+                    box.style.top = '100px'; box.style.left = '100px';
+                    box.style.width = '300px'; box.style.height = '150px';
+                    document.getElementById('status-scanner').innerText = "Ajuste o quadrado vermelho e clique no botão novamente.";
+                });
+            }
         }
 
-        async function iniciarScanner() {
+        function iniciarLeituraOCR() {
             const video = document.createElement('video');
             video.srcObject = stream;
             video.play();
+            document.getElementById('status-scanner').innerText = "Monitorando...";
 
-            setInterval(async () => {
+            setInterval(() => {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                
-                // Pega a posição do quadrado na tela
                 const rect = box.getBoundingClientRect();
+                
                 canvas.width = rect.width;
                 canvas.height = rect.height;
-
-                // Desenha apenas a parte do vídeo correspondente ao quadrado
                 ctx.drawImage(video, rect.left, rect.top, rect.width, rect.height, 0, 0, rect.width, rect.height);
 
                 Tesseract.recognize(canvas, 'por').then(({ data: { text } }) => {
                     if(text.toLowerCase().includes("roubo")) {
-                        console.log("Detectado:", text);
-                        // Aqui você envia para o seu banco Firebase
+                        processarOcorrencia(text);
                     }
                 });
             }, 3000);
         }
+
+        function processarOcorrencia(texto) {
+            // Lógica que a gente já tinha: extrair local, gravar no Firebase
+            db.ref('ocorrencias/' + Date.now()).set({
+                natureza: "Roubo a Caixa Eletrônico",
+                local: texto.substring(0, 50),
+                horario: new Date().toLocaleTimeString()
+            });
+        }
+        
+        // ... RESTANTE DO SEU CÓDIGO DE LISTAGEM DE VIATURAS E OCORRÊNCIAS ...
     </script>
 </body>
 </html>
