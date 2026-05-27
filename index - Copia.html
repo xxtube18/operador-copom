@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel COPOM - Operacional Tático</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen font-sans text-sm select-none">
+
+    <div id="tela-login" class="fixed inset-0 z-50 bg-gray-900 flex items-center justify-center bg-opacity-95 backdrop-blur-sm">
+        <div class="bg-gray-800 p-8 rounded-lg shadow-2xl border border-gray-700 w-96 max-w-full">
+            <div class="text-center mb-6">
+                <h1 class="text-3xl font-black text-yellow-500 tracking-widest mb-1">COPOM</h1>
+                <p class="text-gray-400 text-xs">ACESSO RESTRITO - OPERADOR</p>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1">QRA DO OPERADOR (NOME)</label>
+                    <input type="text" id="login-qra" class="w-full p-3 bg-gray-900 border border-gray-700 rounded text-white uppercase focus:border-yellow-500 focus:outline-none" placeholder="Ex: SRGT FELIPE">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1">SENHA DE ACESSO</label>
+                    <input type="password" id="login-senha" class="w-full p-3 bg-gray-900 border border-gray-700 rounded text-white focus:border-yellow-500 focus:outline-none" placeholder="Senha padrão: copom123">
+                </div>
+                <button onclick="entrarCopom()" class="w-full bg-yellow-600 hover:bg-yellow-500 text-gray-900 font-black tracking-widest py-3 rounded mt-4 transition">
+                    INICIAR TURNO
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <header class="bg-gray-900 p-4 border-b border-gray-800 flex justify-between items-center shadow-md">
+        <div class="flex items-center gap-4">
+            <h1 class="text-xl font-black tracking-wider text-yellow-500">COPOM <span class="text-gray-500 text-sm font-normal">| Central de Despacho</span></h1>
+            <div id="operador-logado" class="text-xs bg-gray-800 px-3 py-1 rounded text-gray-300 font-mono hidden">
+                Operador: <span id="nome-operador-display" class="font-bold text-white">---</span>
+            </div>
+        </div>
+        <div id="conexao-status" class="text-xs bg-red-950 text-red-400 px-3 py-1 rounded-full border border-red-600 font-mono animate-pulse">
+            CONECTANDO AO BANCO...
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 h-[calc(100vh-80px)]">
+        
+        <div class="lg:col-span-4 bg-gray-800 p-4 rounded-lg border border-gray-700 flex flex-col gap-4 overflow-y-auto">
+            <h2 class="text-md font-bold text-blue-400 border-b border-gray-700 pb-2 flex items-center gap-2">
+                🤖 SCANNER DE TELA (METADE ESQUERDA)
+            </h2>
+            
+            <div class="bg-gray-900 p-3 rounded border border-gray-700 space-y-3">
+                <button id="btn-captura" onclick="iniciarCapturaTela()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded transition text-xs shadow-lg">
+                    🖥️ Ligar Leitura Automática
+                </button>
+                
+                <div id="monitor-scanner" class="hidden flex flex-col gap-1">
+                    <span class="text-[10px] text-gray-500 font-mono uppercase">Visão da IA (Somente a metade esquerda):</span>
+                    <canvas id="screen-canvas" class="w-full h-32 bg-black border border-blue-900 rounded object-cover opacity-80"></canvas>
+                    <div id="status-ocr" class="text-center text-[10px] text-yellow-500 animate-pulse mt-1">
+                        Analisando pixels...
+                    </div>
+                </div>
+                <video id="screen-video" autoplay muted class="hidden"></video>
+            </div>
+
+            <div class="bg-gray-900 p-3 rounded border border-gray-700 flex-1 flex flex-col overflow-hidden">
+                <h3 class="text-xs font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">📋 TABELA DE CÓDIGOS B</h3>
+                <div class="text-[11px] space-y-1 font-mono text-gray-300 overflow-y-auto flex-1 pr-1 max-h-[350px]">
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b01:</b> <span class="text-gray-400">Bravo 01 - Homicídio / Disparos</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b02:</b> <span class="text-gray-400">Bravo 02 - Roubo de Veículo</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b03:</b> <span class="text-gray-400">Bravo 03 - Furto / Invasão</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b04:</b> <span class="text-gray-400">Bravo 04 - Roubo em Andamento</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b05:</b> <span class="text-gray-400">Bravo 05 - Sequestro / Cárcere</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b06:</b> <span class="text-gray-400">Bravo 06 - Agressão / Violência</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b07:</b> <span class="text-gray-400">Bravo 07 - Roubo a Estabelecimento</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b08:</b> <span class="text-gray-400">Bravo 08 - Roubo a Caixa / Banco</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b09:</b> <span class="text-gray-400">Bravo 09 - Atitude Suspeita</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b10:</b> <span class="text-gray-400">Bravo 10 - Desacato / Ameaça</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b11:</b> <span class="text-gray-400">Bravo 11 - Tráfico de Drogas</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b12:</b> <span class="text-gray-400">Bravo 12 - Posse de Arma Ilegal</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b13:</b> <span class="text-gray-400">Bravo 13 - Formação de Quadrilha</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b14:</b> <span class="text-gray-400">Bravo 14 - Direção Perigosa</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b15:</b> <span class="text-gray-400">Bravo 15 - Perturbação do Sossego</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b16:</b> <span class="text-gray-400">Bravo 16 - Receptação de Carga</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b17:</b> <span class="text-gray-400">Bravo 17 - Estelionato / Fraude</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b18:</b> <span class="text-gray-400">Bravo 18 - Fuga de Abordagem</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b19:</b> <span class="text-gray-400">Bravo 19 - Vandalismo / Dano</span></div>
+                    <div class="p-1 bg-gray-800/60 rounded flex justify-between"><b>b20:</b> <span class="text-gray-400">Bravo 20 - Atropelamento</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-4 bg-gray-800 p-4 rounded-lg border border-gray-700 flex flex-col space-y-4 overflow-y-auto">
+            <h2 class="text-md font-bold text-green-400 border-b border-gray-700 pb-2">🚓 LANÇAR VIATURA NA REDE</h2>
+            
+            <form id="form-viatura" class="space-y-3 bg-gray-900 p-3 rounded border border-gray-700 shadow-inner">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[10px] text-gray-400 mb-1 uppercase font-bold">Prefixo (Obrigatório)</label>
+                        <input type="text" id="vtr-prefixo" placeholder="Ex: M-123" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-xs text-white uppercase font-bold focus:border-green-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-400 mb-1 uppercase font-bold">Unidade Alocada</label>
+                        <input type="text" id="vtr-unidade" placeholder="Ex: ROTA, 1º BPM" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-xs text-white uppercase focus:border-green-500 focus:outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[10px] text-gray-400 mb-1 uppercase font-bold">Patente (Comando)</label>
+                        <input type="text" id="vtr-patente" placeholder="Ex: SGT" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-xs text-white uppercase focus:border-green-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-gray-400 mb-1 uppercase font-bold">QRA (Comando)</label>
+                        <input type="text" id="vtr-qra" placeholder="Ex: Silva" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-xs text-white uppercase focus:border-green-500 focus:outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] text-gray-400 mb-1 uppercase font-bold">Horário de Início</label>
+                    <input type="time" id="vtr-inicio" class="w-full p-2 bg-gray-800 border border-gray-700 rounded text-xs text-white focus:border-green-500 focus:outline-none">
+                </div>
+                <button type="button" onclick="salvarViatura()" class="w-full bg-green-700 hover:bg-green-600 text-white font-black py-2.5 rounded text-xs transition uppercase tracking-widest shadow-lg">
+                    Inserir Viatura
+                </button>
+            </form>
+
+            <div class="flex-1 flex flex-col">
+                <h3 class="text-xs font-bold text-gray-400 mb-2 border-b border-gray-800 pb-1">📻 ESTAÇÕES EM PATRULHAMENTO</h3>
+                <div id="lista-viaturas" class="space-y-2 overflow-y-auto flex-1 pr-1">
+                    <div class="text-center text-xs text-gray-600 italic mt-4">Aguardando sincronização com a rede...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-4 bg-gray-800 p-4 rounded-lg border border-gray-700 flex flex-col overflow-hidden">
+            <h2 class="text-md font-bold text-red-500 border-b border-gray-700 pb-2 mb-3">🚨 TELA DE OCORRÊNCIAS</h2>
+            <div id="lista-ocorrencias" class="space-y-3 overflow-y-auto flex-1 pr-1">
+                <div class="text-center text-xs text-gray-600 italic mt-4">Nenhuma ocorrência em tela.</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // === SISTEMA DE LOGIN ===
+        function entrarCopom() {
+            const qra = document.getElementById('login-qra').value.trim();
+            const senha = document.getElementById('login-senha').value.trim();
+
+            if(qra === "" || senha === "") return alert("Preencha o QRA e a Senha para assumir o turno!");
+            if(senha !== "copom123") return alert("Senha incorreta! Acesso negado.");
+            
+            document.getElementById('tela-login').style.display = 'none';
+            document.getElementById('operador-logado').classList.remove('hidden');
+            document.getElementById('nome-operador-display').innerText = qra.toUpperCase();
+        }
+
+        // === CONFIGURAÇÃO FIREBASE DO USUÁRIO ===
+        // COLE SUAS CREDENCIAIS DO FIREBASE AQUI
+        const firebaseConfig = {
+            apiKey: "AIzaSyAx6iYmCvjPDFNskUdm7BoK-8mz0iKRApE",
+            authDomain: "operador-copom.firebaseapp.com",
+            databaseURL: "https://operador-copom-default-rtdb.firebaseio.com",
+            projectId: "operador-copom",
+            storageBucket: "operador-copom.firebasestorage.app",
+            messagingSenderId: "520667812670",
+            appId: "1:520667812670:web:5a92acb886a35a3e29926f"
+        };
+
+        // Inicializando Firebase
+        firebase.initializeApp(firebaseConfig);
+        window.db = firebase.database();
+
+        // Altera o status do badge para online
+        const statusBadge = document.getElementById('conexao-status');
+        statusBadge.className = "text-xs bg-green-950 text-green-400 px-3 py-1 rounded-full border border-green-600 font-mono shadow-[0_0_10px_rgba(74,222,128,0.2)]";
+        statusBadge.innerText = "ONLINE / SINCRONIZADO";
+
+        // Dicionário de consulta interna
+        const codigosB = {
+            "B01": "Bravo 01 - Homicídio / Disparos",
+            "B02": "Bravo 02 - Roubo de Veículo",
+            "B03": "Bravo 03 - Furto / Invasão",
+            "B04": "Bravo 04 - Roubo em Andamento",
+            "B05": "Bravo 05 - Sequestro / Cárcere",
+            "B06": "Bravo 06 - Agressão / Violência Doméstica",
+            "B07": "Bravo 07 - Roubo a Estabelecimento",
+            "B08": "Bravo 08 - Roubo a Caixa / Banco",
+            "B09": "Bravo 09 - Atitude Suspeita",
+            "B10": "Bravo 10 - Desacato / Ameaça",
+            "B11": "Bravo 11 - Tráfico de Drogas",
+            "B12": "Bravo 12 - Posse de Arma Ilegal",
+            "B13": "Bravo 13 - Formação de Quadrilha",
+            "B14": "Bravo 14 - Direção Perigosa",
+            "B15": "Bravo 15 - Perturbação do Sossego",
+            "B16": "Bravo 16 - Receptação de Carga",
+            "B17": "Bravo 17 - Estelionato / Fraude",
+            "B18": "Bravo 18 - Fuga de Abordagem",
+            "B19": "Bravo 19 - Vandalismo / Dano",
+            "B20": "Bravo 20 - Atropelamento"
+        };
+
+        // === LANÇAR VIATURA ===
+        function salvarViatura() {
+            const prefixo = document.getElementById('vtr-prefixo').value.trim().toUpperCase();
+            const unidade = document.getElementById('vtr-unidade').value.trim().toUpperCase();
+            
+            if(!prefixo) return alert("O Prefixo da viatura é obrigatório!");
+
+            const dadosVtr = {
+                prefixo: prefixo,
+                unidade: unidade || "N/A",
+                patente: document.getElementById('vtr-patente').value.toUpperCase() || "PM",
+                qra: document.getElementById('vtr-qra').value.toUpperCase() || "PADRÃO",
+                inicio: document.getElementById('vtr-inicio').value || new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}),
+                fim: "--:--",
+                status: "QAP",
+                detalheStatus: ""
+            };
+
+            db.ref('viaturas/' + prefixo).set(dadosVtr).then(() => {
+                document.getElementById('form-viatura').reset();
+            }).catch(e => alert("Erro ao salvar no banco: " + e.message));
+        }
+
+        function mudarStatusVtr(prefixo, statusAlvo) {
+            let detalhe = "";
+            if(statusAlvo === 'QRX') detalhe = prompt(`Informe o local de QRX da VTR ${prefixo}:`);
+            if(statusAlvo === 'QTI') detalhe = prompt(`Informe a Ocorrência em andamento (QTI) da VTR ${prefixo}:`);
+            db.ref('viaturas/' + prefixo).update({ status: statusAlvo, detalheStatus: detalhe || "" });
+        }
+
+        function finalizarTurnoViatura(prefixo) {
+            let horarioFim = prompt(`[COPOM] HORÁRIO DE FIM DE PATRULHA DA VTR ${prefixo}:`);
+            if(!horarioFim || horarioFim.trim() === "") return alert("Operação cancelada.");
+            db.ref('viaturas/' + prefixo).update({ status: "Finalizada", fim: horarioFim });
+        }
+
+        function removerViaturaErro(prefixo) {
+            if(confirm(`Remover permanentemente a VTR ${prefixo} por erro de lançamento?`)) {
+                db.ref('viaturas/' + prefixo).remove();
+            }
+        }
+
+        // Realtime Listener - Atualização das Viaturas em Tela
+        db.ref('viaturas').on('value', snapshot => {
+            const container = document.getElementById('lista-viaturas');
+            container.innerHTML = "";
+            let temViatura = false;
+            
+            snapshot.forEach(child => {
+                const vtr = child.val();
+                if(vtr.status === "Finalizada") return;
+                temViatura = true;
+
+                let corIndicador = vtr.status === 'QAP' ? '#22c55e' : vtr.status === 'QRX' ? '#eab308' : '#ef4444';
+                let bgVtr = vtr.status === 'QTI' ? 'bg-red-950/30' : 'bg-gray-900';
+                let infoObs = vtr.detalheStatus ? `<div class="mt-2 text-[10px] bg-black/50 p-1.5 rounded border border-gray-700 text-gray-300"><b>OBS:</b> ${vtr.detalheStatus}</div>` : "";
+
+                container.innerHTML += `
+                    <div class="${bgVtr} p-3 rounded-lg border border-gray-700 relative shadow-md" style="border-left: 4px solid ${corIndicador}">
+                        <button onclick="removerViaturaErro('${vtr.prefixo}')" class="absolute top-2 right-2 text-gray-400 hover:text-red-500 font-black text-xs px-1.5 py-0.5 rounded transition bg-gray-800 border border-gray-700">❌</button>
+                        <div class="flex justify-between items-start pr-6">
+                            <div>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="font-black text-yellow-500 text-sm tracking-wider">${vtr.prefixo}</span>
+                                    <span class="text-[10px] bg-blue-900 text-blue-100 px-1.5 py-0.5 rounded font-mono font-bold">${vtr.unidade}</span>
+                                </div>
+                                <div class="text-[11px] text-gray-300 font-mono uppercase bg-gray-950 px-2 py-1 rounded inline-block border border-gray-800">
+                                    <b>CMD:</b> ${vtr.patente} ${vtr.qra} | <b>INÍCIO:</b> ${vtr.inicio}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-4 gap-1 mt-3">
+                            <button onclick="mudarStatusVtr('${vtr.prefixo}', 'QAP')" class="px-2 py-1.5 text-[10px] rounded font-black bg-green-800 text-green-100 hover:bg-green-600 border border-green-700 transition">QAP</button>
+                            <button onclick="mudarStatusVtr('${vtr.prefixo}', 'QRX')" class="px-2 py-1.5 text-[10px] rounded font-black bg-yellow-700 text-yellow-100 hover:bg-yellow-600 border border-yellow-600 transition">QRX</button>
+                            <button onclick="mudarStatusVtr('${vtr.prefixo}', 'QTI')" class="px-2 py-1.5 text-[10px] rounded font-black bg-red-800 text-red-100 hover:bg-red-600 border border-red-700 transition animate-pulse">QTI</button>
+                            <button onclick="finalizarTurnoViatura('${vtr.prefixo}')" class="px-2 py-1.5 text-[10px] rounded font-bold bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white border border-gray-600 transition text-center uppercase">Fim</button>
+                        </div>
+                        ${infoObs}
+                    </div>
+                `;
+            });
+            if(!temViatura) container.innerHTML = '<div class="text-center text-xs text-gray-600 italic mt-4">Nenhuma viatura ativa na rede.</div>';
+        });
+
+        // === SCANNER AUTOMÁTICO DE TELA ===
+        let streamTela = null, intervaloOCR = null;
+
+        async function iniciarCapturaTela() {
+            const btn = document.getElementById('btn-captura');
+            const monitor = document.getElementById('monitor-scanner');
+
+            if (streamTela) {
+                clearInterval(intervaloOCR);
+                streamTela.getTracks().forEach(t => t.stop());
+                streamTela = null;
+                btn.innerHTML = "🖥️ Ligar Leitura Automática";
+                btn.className = "w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded transition text-xs shadow-lg";
+                monitor.classList.add('hidden');
+                return;
+            }
+
+            try {
+                streamTela = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: "window" }, audio: false });
+                const video = document.getElementById('screen-video');
+                video.srcObject = streamTela;
+
+                btn.innerHTML = "🛑 DESLIGAR SCANNER";
+                btn.className = "w-full bg-red-700 hover:bg-red-600 text-white font-black py-2 rounded text-xs tracking-widest shadow-lg";
+                monitor.classList.remove('hidden');
+
+                // Executa a verificação OCR a cada 4 segundos
+                intervaloOCR = setInterval(processarLeituraTela, 4000);
+            } catch (err) {
+                alert("Captura de tela não autorizada ou falhou.");
+            }
+        }
+
+        function processarLeituraTela() {
+            const video = document.getElementById('screen-video');
+            const canvas = document.getElementById('screen-canvas');
+            if (!video.srcObject) return;
+
+            const ctx = canvas.getContext('2d');
+            
+            // TRAVA DE VISÃO: Pega do Ponto 0 (Esquerda) até exatos 50% da largura da tela (Meio)
+            let larguraRecorte = video.videoWidth * 0.50; 
+            canvas.width = larguraRecorte;
+            canvas.height = video.videoHeight;
+
+            // Corta a imagem ignorando totalmente o lado direito
+            ctx.drawImage(video, 0, 0, larguraRecorte, video.videoHeight, 0, 0, larguraRecorte, video.videoHeight);
+
+            // Executa inteligência OCR na imagem cortada
+            Tesseract.recognize(canvas, 'por').then(({ data: { text } }) => {
+                if(text && text.trim().length > 10) processarTextoCapturado(text);
+            }).catch(e => console.log("Aguardando frame estável..."));
+        }
+
+        window.ultimaLinhaProcessada = "";
+        function processarTextoCapturado(textoBruto) {
+            let textoMinusculo = textoBruto.toLowerCase();
+            
+            // FILTRO DE RUÍDO: Só avança se o texto tiver palavras-chave que indicam ser um chamado policial
+            let pareceDespacho = /recebido|disparo|tiro|roubo|furto|agressão|veículo|arma|fogo|av\.|rua\.|praça|b\d{2}/i.test(textoMinusculo);
+            
+            // Se não parecer um despacho de RP, ignora completamente a leitura
+            if (!pareceDespacho) return;
+
+            // Trava anti-repetição em loops curtos (pra não floodar o banco com a mesma ocorrência)
+            let amostra = textoMinusculo.substring(0, 30);
+            if (window.ultimaLinhaProcessada === amostra) return; 
+            window.ultimaLinhaProcessada = amostra;
+
+            // --- ENGINE DE INTEL-MAPPING PALAVRAS CHAVE ---
+            let codigo = "B99"; 
+            
+            if (textoMinusculo.includes("disparo") || textoMinusculo.includes("tiro") || textoMinusculo.includes("arma") || textoMinusculo.includes("fogo")) {
+                codigo = "B01";
+            } else if (textoMinusculo.includes("veículo") && (textoMinusculo.includes("roubo") || textoMinusculo.includes("furto") || textoMinusculo.includes("roubado"))) {
+                codigo = "B02";
+            } else if (textoMinusculo.includes("furto") || textoMinusculo.includes("invasão")) {
+                codigo = "B03";
+            } else if (textoMinusculo.includes("andamento") || textoMinusculo.includes("assalto")) {
+                codigo = "B04";
+            } else if (textoMinusculo.includes("sequestro") || textoMinusculo.includes("cárcere")) {
+                codigo = "B05";
+            } else if (textoMinusculo.includes("agressão") || textoMinusculo.includes("briga") || textoMinusculo.includes("violência")) {
+                codigo = "B06";
+            } else if (textoMinusculo.includes("tráfico") || textoMinusculo.includes("droga") || textoMinusculo.includes("entorpecente")) {
+                codigo = "B11";
+            } else if (textoMinusculo.includes("sossego") || textoMinusculo.includes("perturbação") || textoMinusculo.includes("barulho")) {
+                codigo = "B15";
+            } else if (textoMinusculo.includes("fuga") || textoMinusculo.includes("abordagem")) {
+                codigo = "B18";
+            }
+
+            // Se o texto já contiver diretamente uma sigla "B01-B20", força a sigla
+            let codMatch = textoBruto.match(/(b\d{2})/i);
+            if (codMatch) codigo = codMatch[1].toUpperCase();
+
+            // Ignora alertas se não conseguiu classificar e não é urgência
+            if (codigo === "B99" && !textoMinusculo.includes("recebido")) return;
+
+            // --- EXTRATOR DE LOCALIZAÇÃO AUTOMÁTICO ---
+            let local = "Em apuração";
+            let linhas = textoBruto.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+            
+            // Busca linha que contenha prefixos clássicos de ruas/avenidas
+            let linhaLocal = linhas.find(l => /(av\.|rua|r\.|alameda|rodovia|praça|estrada|pacaembu)/i.test(l));
+            if (linhaLocal) {
+                local = linhaLocal;
+            } else if (linhas.length >= 2) {
+                // Tenta pegar a segunda linha do texto lido
+                local = linhas[1];
+            }
+
+            // Define se a prioridade é alta
+            let ehVermelha = /urgente|prioridade|vermelho|b01|b04|b05|b08|arma|fogo|baleado/i.test(textoMinusculo);
+
+            // Envia pro Banco de Dados Firebase
+            db.ref('ocorrencias/' + Date.now()).set({
+                id: Date.now(),
+                codigo: codigo,
+                natureza: codigosB[codigo] || "Alerta Geral / Apoio",
+                denunciante: "Central RP",
+                local: local,
+                detalhes: textoBruto.substring(0, 120).replace(/\n/g, " "),
+                prioridade: ehVermelha ? "Nível Vermelho" : "Amarelo",
+                horario: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})
+            });
+        }
+
+        // Realtime Listener - Atualização das Ocorrências na Tela
+        db.ref('ocorrencias').on('value', snapshot => {
+            const container = document.getElementById('lista-ocorrencias');
+            container.innerHTML = "";
+            let temOcorrencia = false;
+            
+            snapshot.forEach(child => {
+                temOcorrencia = true;
+                const oc = child.val();
+                let ehVermelha = oc.prioridade.includes("Vermelho");
+                
+                container.innerHTML += `
+                    <div class="bg-gray-900 border rounded-lg p-3 shadow-xl ${ehVermelha ? 'border-red-600 bg-red-950/30' : 'border-gray-700'}" style="border-left: 5px solid ${ehVermelha ? '#dc2626' : '#6b7280'};">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <span class="${ehVermelha ? 'bg-red-600' : 'bg-gray-600'} text-white px-2 py-0.5 rounded text-[11px] font-black font-mono uppercase tracking-widest">${oc.codigo}</span>
+                                <span class="font-black ml-2 text-sm ${ehVermelha ? 'text-red-400' : 'text-yellow-500'} uppercase">${oc.natureza}</span>
+                            </div>
+                            <span class="text-[10px] text-gray-400 font-mono bg-black px-1.5 py-0.5 rounded border border-gray-800">🕒 ${oc.horario}</span>
+                        </div>
+                        
+                        <div class="text-[11px] space-y-1.5 bg-black/40 p-2 rounded border border-gray-800 font-mono">
+                            <div class="flex"><span class="text-gray-500 w-16">NÍVEL:</span> <span class="${ehVermelha ? 'text-red-500 font-bold animate-pulse' : 'text-yellow-400'} uppercase">${oc.prioridade}</span></div>
+                            <div class="flex"><span class="text-gray-500 w-16">FONTE:</span> <span class="text-gray-300">${oc.denunciante}</span></div>
+                            <div class="flex"><span class="text-gray-500 w-16">LOCAL:</span> <span class="text-green-400 font-bold">${oc.local}</span></div>
+                        </div>
+
+                        <button onclick="db.ref('ocorrencias/${oc.id}').remove()" class="mt-2 w-full bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white py-1.5 rounded text-[10px] font-bold border border-gray-600 transition uppercase tracking-widest">
+                            ENCERRAR OCORRÊNCIA TELA
+                        </button>
+                    </div>
+                `;
+            });
+            if(!temOcorrencia) container.innerHTML = '<div class="text-center text-xs text-gray-600 italic mt-4">Nenhuma ocorrência em tela. QAP total.</div>';
+        });
+    </script>
+</body>
+</html>
